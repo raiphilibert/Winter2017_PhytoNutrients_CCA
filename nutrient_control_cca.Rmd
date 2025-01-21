@@ -1,0 +1,474 @@
+---
+title: "Canonical correspondence analysis for winter controls on phytoplankton distribution"
+output:
+  bookdown::html_document2:
+    df_print: paged
+    toc: yes
+    number_sections: yes
+    pandoc_args: [
+      "-V", "classoption=threecolumn"
+      ]
+    fig_caption: yes
+    toc_float: yes
+    theme: readable
+---
+
+
+<style type="text/css">
+.main-container {
+  max-width: 1800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+</style>
+
+<style>
+  .col2 {
+    columns: 2 200px;         /* number of columns and width in pixels*/
+    -webkit-columns: 2 200px; /* chrome, safari */
+    -moz-columns: 2 200px;    /* firefox */
+  }
+  .col3 {
+    columns: 3 100px;
+    -webkit-columns: 3 100px;
+    -moz-columns: 3 100px;
+    word-break: break-word;
+  }
+  .col5 {
+    columns: 5 80px;
+    -webkit-columns: 5 80px;
+    -moz-columns: 5 80px;
+  }
+</style>
+
+<style>
+div.tbcol {
+  width: 500px;
+}
+</style>
+
+# Introduction
+
+This document presents a multivariate analysis of the relationships between trace metals and phytoplankton community composition. It provides a brief overview of the stastical methods and interpretation. This is followed by the code and outputs.
+
+# Method overview
+
+The factors influencing the phytoplankton community structure were investigated using a canonical correspondence analysis (CCA). The analysis was conducted in R using the `cca` function from the Vegan package. The biotic variables were represented by the CHEMTAX-derived taxonomical groups' biomass (µg/L of Chl a). The CCA was repeated for multiple sets of environmental parameters:
+
+ * temperature, salinity, macronutrients, trace metals (dissolved and particulate) for all stations that include trace metals.
+ * Macronutrients for all stations for all stations excluding station I008
+ * Dissolved trace metals for all stations excluding station I008
+ * Particulate trace metals for all stations excluding station I008
+
+Permutation tests were run based on 999 permutations to evaluate the significance of the CCA axes and the significance of the environmental variables.
+
+
+# CCA analysis
+```{r setup, include=FALSE}
+
+#rmarkdown options
+knitr::opts_chunk$set(echo = TRUE,
+                      results = "asis",
+                      echo = FALSE,
+                      message = FALSE,
+                      warning = FALSE,
+                      include = TRUE,
+                      error = FALSE)
+
+options(knitr.duplicate.label = 'allow') #this will allow repeating chunknames. Needed as we repeat the same code for the analysis
+
+# load libraries
+library(readxl)
+library(vegan)
+library(dplyr)
+library(tidyr)
+library(corrplot)
+library(ggplot2)
+library(ggvegan)
+library(pander)
+library(knitr)
+library(ggrepel)
+library(kableExtra)
+library(readr)
+
+#load full dataset
+WC17 <- read_csv(here::here("raw data/WC17_DataComp_update.csv")) #here:here is to get the project path
+WC17stationlabels <- read_excel(here::here("raw data/WC17-CTD_Tables.xlsx"))
+WC17stationlabels <- 
+  WC17stationlabels %>%
+  select(Station,Zone,`Station Label`)
+
+WC17 <- WC17 %>%
+        left_join(WC17stationlabels)%>%
+        select(Cruise,Station,Zone,`Station Label`,everything())
+        
+
+
+```
+
+\br
+## Verifying assumptions: unimodality
+
+
+```{r, fig.cap = "Density plots of CHEMTAX derived taxonomical groups' biomass (µg/L of Chl a)"}
+
+WC17 %>%
+        select(
+          Diatoms:Prochlorococcus
+        ) %>%
+  tibble::rownames_to_column(var = "id") %>%
+  pivot_longer(-id,
+              names_to = "species",
+              values_to = "concentration") %>%
+  ggplot() +
+  geom_density(aes(x=concentration))+
+  facet_wrap(.~species,scales = "free")+
+  xlab(bquote("CHEMTAX derived biomass (µg/L of Chl a)"))+
+  ylab("Density")+
+  theme_classic()
+
+
+```
+\br
+From the density plots above, the phytoplankton biomass for the various taxonomic groups appear to be unimodal.
+
+```{r, fig.cap = "Density distribution plots of environmental variables", fig.height = 12, fig.width = 12}
+
+WC17_plot <- WC17 %>% 
+        rename(
+         "Nitrate (µmol/L)" = Nitrate,
+         "Phosphate (µmol/L)" = `Phosphate` ,
+         "Silica (µmol/L)"= `Silica`,
+          "dFe (nmol kg-1)" = dFe,
+          "dMn (nmol kg-1)" = dMn,
+          "pMn (µmol kg-1)" = pMn,
+          "dCo (pmol kg-1)" = dCo,
+          "pCo (pmol kg-1)" = pCo,
+          "dZn (nmol kg-1)" = dZn,
+          "pZn (nmol kg-1)" = pZn,
+          "dCd (nmol kg-1)" = dCd,
+          "pCd (pmol kg-1)" = pCd,
+          "dNi (nmol kg-1)" = dNi,
+          "pNi (pmol kg-1)" = pNi,
+          "dCu (nmol kg-1)" = dCu,
+          "pCu (pmol kg-1)" = pCu,
+          "P (nmol kg-1)" = P,
+      "pAl (nmol kg-1)" = pAl,
+      `Temp (°C)` = Temp,
+      `Sal (psu)` = Sal
+         )
+
+WC17_plot %>%
+          select(`Temp (°C)`,
+                 `Sal (psu)`,
+                 `Nitrate (µmol/L)`:`Silica (µmol/L)`,
+                 `dFe (nmol kg-1)`:`pAl (nmol kg-1)`,
+                  Phaeo_Chla) %>%
+  tibble::rownames_to_column(var = "id") %>%
+    pivot_longer(-id,
+                names_to = "nutrient",
+                values_to = "concentration") %>%
+  ggplot() +
+  geom_density(aes(x=concentration))+
+  facet_wrap(.~nutrient,scales = "free")+
+  theme_classic()+
+  xlab("")+
+  ylab("Density")
+
+
+```
+
+\br
+The density plots above show that the nutrient distributions are mostly unimodal.
+
+
+## CCA results
+```{r}
+### Rename variables
+WC17 <- WC17 %>% 
+        rename(
+        `NO3` = "Nitrate",
+         `PO4` = "Phosphate",
+         `Si(OH)4` = "Silica"
+                )
+
+```
+\br
+
+
+```{r setupPlotObject}
+
+
+plots <- NULL
+```
+### Analysis 1: All variables
+
+
+```{r}
+
+variables <- c("Temp", "Sal", 
+               "NO3", "PO4", "Si(OH)4","dFe","dMn", "pMn", 
+               "dCo", "pCo", "dZn", "pZn", "dCd", "pCd", 
+               "dNi", "pNi", "dCu", "pCu")
+
+stationsToInclude <- c("IO08", "IO07", "IO06", "IO05", "IO04", "IO03", "IO02", "IO01")
+
+variableDescription <- "Temperature, salinity, macronutrients, trace metals and phaeopigments:Tchla"
+
+ccaFigName <- "allvariables"
+corFigName <- paste("cor",ccaFigName,sep = "_")
+
+env <- new.env()
+out <- knit_expand(here::here('child.Rmd'), envir = env)
+
+```
+\br
+
+`r paste(knit(text = out), collapse = '\n')`
+
+### Analysis 2: Macronutrients
+
+
+```{r}
+
+variables <- c("NO3","PO4","Si(OH)4")
+stationsToInclude <- c("IO07", "IO06", "IO05", "IO04", "IO03", "IO02", "IO01")
+variableDescription <- "macronutrients"
+ccaFigName <- "macronutrients"
+corFigName <- paste("cor",ccaFigName,sep = "_")
+
+env2 <- new.env()
+out2 <- knit_expand(here::here('child.Rmd'), envir = env2)
+
+```
+
+`r paste(knit(text = out2), collapse = '\n')`
+
+### Analysis 3: Macronutrients with STZ station
+
+
+```{r}
+
+variables <- c("NO3","PO4","Si(OH)4")
+stationsToInclude <- c("IO08","IO07", "IO06", "IO05", "IO04", "IO03", "IO02", "IO01")
+variableDescription <- "macronutrients with STZ"
+ccaFigName <- "macronutrients_stz"
+corFigName <- paste("cor",ccaFigName,sep = "_")
+
+env2 <- new.env()
+out2 <- knit_expand(here::here('child.Rmd'), envir = env2)
+
+```
+
+
+`r paste(knit(text = out2), collapse = '\n')`
+
+### Analysis 4: macro and micro nutrients
+
+```{r}
+
+variables <- c(
+               "NO3", "PO4", "Si(OH)4","dFe", "pFe","dMn", "pMn", 
+               "dCo", "pCo", "dZn", "pZn", "dCd", "pCd", 
+               "dNi", "pNi", "dCu", "pCu")
+stationsToInclude <- c("IO07", "IO06", "IO05", "IO04", "IO03", "IO02", "IO01")
+variableDescription <- "macronutrients and trace metals"
+ccaFigName <- "macronutrients_and_tracemetals"
+corFigName <- paste("cor",ccaFigName,sep = "_")
+
+env <- new.env()
+out3 <- knit_expand(here::here('child.Rmd'), envir = env)
+
+```
+
+`r paste(knit(text = out3), collapse = '\n')`
+
+### Analysis 5: Dissolved trace metals 
+
+
+```{r}
+
+variables <- c("dFe", "dMn",  
+               "dCo", "dZn", "dCd",  
+               "dNi", "dCu")
+
+stationsToInclude <- c("IO07", "IO06", "IO05", "IO04", "IO03", "IO02", "IO01")
+variableDescription <- "dissolved trace metals"
+ccaFigName <- "dissolved trace metals"
+corFigName <- paste("cor",ccaFigName,sep = "_")
+
+env <- new.env()
+out4 <- knit_expand(here::here('child.Rmd'), envir = env)
+
+```
+
+`r paste(knit(text = out4), collapse = '\n')`
+### Analysis 6: Particulate trace metals
+
+
+```{r}
+
+variables <- variables <- c("pMn","pCo", "pZn","pCd", "pNi", "pCu","pFe")
+stationsToInclude <- c("IO07", "IO06", "IO05", "IO04", "IO03", "IO02", "IO01")
+variableDescription <- "Particulate trace metals"
+ccaFigName <- "particulate trace metals"
+corFigName <- paste("cor",ccaFigName,sep = "_")
+
+env <- new.env()
+out5 <- knit_expand(here::here('child.Rmd'), envir = env)
+
+```
+
+`r paste(knit(text = out5), collapse = '\n')`
+
+### Analysis 7: Dissolved trace metals including the STZ station
+
+
+```{r}
+
+variables <- c("dFe", "dMn",  
+               "dCo", "dZn", "dCd",  
+               "dNi", "dCu")
+
+stationsToInclude <- c("IO08","IO07", "IO06", "IO05", "IO04", "IO03", "IO02", "IO01")
+variableDescription <- "dissolved trace metals with STZ"
+ccaFigName <- "dissolved trace metals_stz"
+corFigName <- paste("cor",ccaFigName,sep = "_")
+
+env <- new.env()
+out6 <- knit_expand(here::here('child.Rmd'), envir = env)
+
+```
+
+`r paste(knit(text = out6), collapse = '\n')`
+
+
+### Analysis 8: Particulate trace metals with STZ
+
+
+```{r}
+
+variables <- variables <- c("pMn","pCo", "pZn","pCd", "pNi", "pCu","pFe")
+stationsToInclude <- c("IO08","IO07", "IO06", "IO05", "IO04", "IO03", "IO02", "IO01")
+variableDescription <- "Particulate trace metals including the STZ station"
+ccaFigName <- "particulate trace metals_stz"
+corFigName <- paste("cor",ccaFigName,sep = "_")
+
+env <- new.env()
+out7 <- knit_expand(here::here('child.Rmd'), envir = env)
+
+```
+
+
+`r paste(knit(text = out7), collapse = '\n')`
+
+
+```{r finalizing}
+
+#saving the plots into a Rdata object that can be used in another script
+
+save(plots,file = here::here("figures/ccaPlots.Rda"))
+
+### Combining figures without having to run another script
+#Example script to combine multiple plots using the package patchwork
+library(ggplot2)
+library(png)
+library(patchwork) 
+library(cowplot) ##can use cowplot as well to combine plots but here using to extract legend
+
+#load plots from CCA analysis
+load(here::here("figures/ccaPlots.Rda"))
+
+p <- plots[["allvariables"]]
+
+#can remove legend to add separately
+legend <- ggpubr::get_legend(p, position = NULL)
+legend<- ggpubr::as_ggplot(legend)
+#plot annotation: https://patchwork.data-imaginist.com/articles/guides/annotation.html
+plots_no_leg <- NULL
+for(nm in names(plots)){
+  plots_no_leg[[nm]] <- plots[[nm]] + theme(legend.position = "none",plot.margin = unit(c(0,0,0,0),"cm")) + coord_cartesian()
+}
+
+# Create the first four plots as a grid with labels
+plot_grid <- plot_grid(
+  plots_no_leg[["dissolved trace metals_stz"]], 
+  plots_no_leg[["particulate trace metals_stz"]],
+  plots_no_leg[["dissolved trace metals"]], 
+  plots_no_leg[["particulate trace metals"]],
+  labels = c("a)", "b)", "c)", "d)"),  # Custom labels
+  label_size = 14,                     # Adjust label size if needed
+  ncol = 2                             # Arrange in 2 columns
+)+
+  theme(plot.margin = unit(c(0.2,0.2,0.5,0.2),"cm"))
+
+# Combine the grid with the legend below
+combinedPlot <- plot_grid(
+  plot_grid, 
+  legend, 
+  ncol = 1,                 # Stack grid and legend vertically
+  rel_heights = c(0.9, 0.1) # Adjust relative heights of the components
+) +
+  theme(plot.background = element_rect(fill = "white", color = "white"),
+panel.background = element_rect(fill = "white", color = "white")
+)
+
+# Display the combined plot
+combinedPlot
+ggsave(here::here("figures/figure5Combined.png"),
+       height = 11,
+       width = 8,
+       dpi =300)
+
+
+#### Macronutrients figure ###################
+#load plots from CCA analysis
+load(here::here("figures/ccaPlots.Rda"))
+
+p <- plots[["macronutrients_stz"]]
+
+#can remove legend to add separately
+legend <- ggpubr::get_legend(p, position = NULL)
+legend<- ggpubr::as_ggplot(legend)
+#plot annotation: https://patchwork.data-imaginist.com/articles/guides/annotation.html
+plots_no_leg <- NULL
+for(nm in names(plots)){
+  plots_no_leg[[nm]] <- plots[[nm]] + theme(legend.position = "none",plot.margin = unit(c(0,0,0,0),"cm")) + coord_cartesian()
+}
+
+
+
+# Create the first four plots as a grid with labels
+plot_grid <- plot_grid(
+  plots_no_leg[["macronutrients_stz"]],
+  plots_no_leg[["macronutrients"]], 
+  labels = c("a)", "b)"),  # Custom labels
+  label_size = 14,                     # Adjust label size if needed
+  ncol = 2                             # Arrange in 2 columns
+)+
+  theme(plot.margin = unit(c(0.2,0.2,0.5,0.2),"cm"))
+
+# Combine the grid with the legend below
+combinedPlot <- plot_grid(
+  plot_grid, 
+  legend, 
+  ncol = 1,                 # Stack grid and legend vertically
+  rel_heights = c(0.45, 0.1) # Adjust relative heights of the components
+) +
+  theme(plot.background = element_rect(fill = "white", color = "white"),
+        panel.background = element_rect(fill = "white", color = "white")
+  )
+
+# Display the combined plot
+combinedPlot
+ggsave(here::here("figures/macronutrientsCombined.png"),
+       height = 6,
+       width = 8,
+       dpi =300)
+
+ggsave(here::here("figures/macronutrientsCombined.pdf"),
+       height = 6,
+       width = 8,
+       dpi =300)
+```

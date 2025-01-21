@@ -1,0 +1,357 @@
+```{r datasetupchunk, eval.after=TRUE}
+sts <- stationsToInclude
+vars <- variables
+ccaName <- as.character("{{ccaFigName}}")
+variableDesc <- as.character("{{variableDescription}}")
+
+#remove rows with NA
+WC17select <- WC17 %>%
+        filter(Station %in% sts) %>%
+        select(Cruise:ML,
+               TChl_a,
+               Diatoms:Prochlorococcus,
+               all_of(vars)) %>% #select metadata, response variables and environmental variables of interest
+        drop_na()
+
+
+#select metadata for each datapoint
+metadata <- 
+  WC17select %>%
+  select(Cruise:Depth_m,TChl_a)
+
+
+
+#select environmental variables to include in the analysis and rename them a short name for ease of visualization
+# no3_no2 not included because no2 concentration much smaller than no3
+envVars <- 
+  WC17select %>%
+  select(all_of(vars))
+
+
+#select response variables
+resp <- WC17select %>%
+        select(
+          Diatoms:Prochlorococcus
+        )
+
+resp <-
+  resp %>% rename(
+ "Diatom" = "Diatoms",
+"Phaeo" = "Phaeocystis", 
+"Cocco" = "Coccolithophores", 
+"Dino" = "Dinoflagellates",
+"Crypto" = "Cryptophytes", 
+"Pelago" = "Pelagophytes",
+"Prasino" = "Prasinophytes",
+"Chloro" = "Chlorophytes", 
+"Syn" = "Synechococcus",
+"Prochl" = "Prochlorococcus"
+  )
+  
+```
+
+
+#### Correlation plots
+\br
+```{r {{corFigName}}, fig.cap = figCap, eval.after = T}
+figCap <- sprintf("Correlation matrix for %s",
+                  variableDesc
+)
+corMat = cor(envVars)
+corrplot(corMat, method="circle")
+```
+\br
+
+#### CCA outputs
+
+\br
+The CCA results are shown below:
+```{r cca, results = "markup"}
+cca.res <- cca(resp ~ .,envVars)
+cca.summ <- summary(cca.res)
+
+
+dfExplained <-
+  data.frame(
+    `Partition` = c("Total","Constrained","Unconstrained"),
+    `Inertia` =  c(cca.summ$tot.chi,cca.summ$constr.chi,cca.summ$unconst.chi),
+              check.names = F,
+              stringsAsFactors = F)
+
+dfExplained$Proportion <- dfExplained$Inertia/cca.summ$tot.chi
+
+kable(dfExplained, digits = 3, 
+      caption = "Partitioning of scaled Chi-square for the CCA") %>%
+ kable_paper('hover',full_width = F,position="left")
+```
+
+
+```{r}
+capt = sprintf("The proportion of variation explained by each CCA axis for the CCA %s", variableDesc)
+kable(cca.summ$cont$importance, digits = 3, 
+      caption = capt) %>%
+ kable_paper('hover',full_width = F,position="left")
+
+```
+\br
+
+Variance inflation factors were calculated using the `vif.cca` function. Variance inflation is an indicator of redundancy/colinearity of variables. Variance inflation factors greater than 10 generally indicate that the colinearity of the variables is likely to hinder interpretation of the CCA. The user guide states: 
+
+"Variance inflation is a diagnostic tool to identify useless constraints. A common rule is that values over 10 indicate redundant constraints. If later constraints are complete linear combinations of conditions or previous constraints, they will be completely removed from the estimation, and no biplot scores or centroids are calculated for these aliased constraint." 
+
+
+```{r}
+
+vif <- vif.cca(cca.res)
+
+vif %>%
+  kable(digits = 3, 
+        caption = sprintf("Variance Inflation Factors for the CCA with %s",variableDesc)) %>%
+ kable_paper('hover',full_width = F,position="left")
+```
+
+\br 
+
+```{r}
+tryCatch({
+  if (!is.null(cca.res$CCA$alias)) {
+    alias_tab <- alias(cca.res)
+    alias_tab$Complete %>% as.table() %>%
+      kable(digits = 3, caption = "Aliased variables. Row names indicate the variables that aliased (i.e. can be expressed linearly in terms of other terms in the model and values indicate the strength of the relationship. Large values indicate a strong linear relationship and small values a week linear relationship. Aliased variables are removed from the CCA model and not shown.") %>%
+      kable_paper('hover', full_width = FALSE, position = "left")
+  }
+}, error = function(e) {
+  message(sprintf("Error occurred: %s", conditionMessage(e)))
+})
+
+```
+\br
+The results of the permutation test to test the significance of the CCA are shown below:
+```{r, results = "markup"}
+ccaSignif <- anova.cca(cca.res,permutations = 999)
+ccaSignif %>%
+  kable(digits = 3, 
+        caption = sprintf("Significance of overall CCA for the CCA with  %s", variableDesc )) %>%
+ kable_paper('hover',full_width = F,position="left")
+
+```
+\br
+The significance of the CCA axes are shown below:
+```{r}
+# Testing the significance of CCA axes (at least the first two or three should present a significant p value):
+anova.cca(cca.res, by="axis")%>%
+  kable(digits = 3, 
+        caption = sprintf("Significance of CCA axes for the CCA with %s ", variableDesc)) %>%
+ kable_paper('hover',full_width = F,position="left")
+
+```
+\br
+The significance of the terms for the environmental variables:
+```{r}
+# Testing the significance of terms (environmental variables):
+anova.cca(cca.res, by="terms") %>%
+    kable(digits = 3, 
+        caption = sprintf("Significance of CCA terms (environmental variables) for the CCA with %s", variableDesc)) %>%
+ kable_paper('hover',full_width = F,position="left")
+
+```
+
+The CCA biplot is shown below:
+
+```{r}
+fmod <- fortify(cca.res)
+
+```
+
+\br
+```{r {{ccaFigName}}, fig.height= 7, fig.width = 7, fig.cap = ccaFigCap, eval.after=T}
+
+ccaFigCap <- sprintf("Canonical correspondence analysis ordination diagram of absolute contributions of different phytoplankton groups for a CCA with %s. Arrows indicate environment variables: %s . Blue text refer to absolute contributions of phytoplankton groups. Stations are represented by shapes as per the legend and are colored according to the frontal zones in which they are located.",
+    variableDesc,
+    knitr::combine_words(names(envVars)))
+
+
+textSize <- 3
+pointSize <- 1.8
+
+cca1perc <- formatC(cca.summ$cont$importance["Proportion Explained","CCA1"]*100,
+                    digits = 2)
+cca2perc <- formatC(cca.summ$cont$importance["Proportion Explained","CCA2"]*100,
+                    digits = 2)
+xlabel <- sprintf("CCA1 (%s %%)",cca1perc)
+ylabel <- sprintf("CCA2 (%s %%)",cca2perc)
+
+
+
+guides <-
+  data.frame(
+  stringsAsFactors = FALSE,
+       check.names = FALSE,
+              Zone = c("STZ", "SAZ", "SAZ", "PFZ", "AAZ", "AAZ", "AAZ", "AAZ"),
+   `Station Label` = c("St. 41.0°S","St. 43.0°S",
+                       "St. 45.5°S","St. 48.0°S","St. 50.6°S","St. 53.5°S",
+                       "St. 56.0°S","St. 58.5°S"),
+             shape = c(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L),
+             color = c("#1B9E77","#D95F02","#D95F02",
+                       "#7570B3","#e6ab02","#e6ab02","#e6ab02","#e6ab02")
+)
+
+biplotData <- subset(fmod, score == "biplot") %>%
+             # mutate(label = gsub("`","",label))%>%
+              mutate(label = gsub("NO3","NO[3]",label))  %>%
+              mutate(label = gsub("PO4","PO[4]",label)) %>%
+              mutate(label = gsub("`Si(OH)4`","Si(OH)[4]",label,fixed = T)) %>%
+              mutate(vjust = ifelse(CCA2 < 0, 0.5,0),
+                     hjust = ifelse(CCA1 < 0, 1,0)) 
+              
+plots[[ccaName]] <- ggplot(fmod, aes(x = CCA1, y = CCA2)) +
+  geom_point(
+    data = subset(fmod, score == "species"),
+    size = pointSize,
+    color = "blue",
+    shape = 20
+  ) +
+  geom_label_repel(
+    data = subset(fmod, score == "species"),
+    aes(label = label),
+    size = textSize,
+    color = "blue",
+    seed = 42,
+    alpha = 0.8,
+    min.segment.length = 0.01,
+    max.overlaps = Inf,
+    label.padding = 0.1
+  ) +
+  geom_point(
+    data = cbind(
+      subset(fmod, score == "sites"),
+      shape = metadata$`Station Label`,
+      chla = metadata$TChl_a,
+      Zone = metadata$Zone
+    ),
+    aes(
+      shape = shape,
+      color = Zone,
+      fill = Zone
+    ),
+    size = pointSize,
+    stroke = 1
+  ) +
+  scale_shape_manual(
+    values = c(
+      "St. 41.0°S" = 1,
+      "St. 43.0°S" = 2,
+      "St. 45.5°S" = 3,
+      "St. 48.0°S" = 4,
+      "St. 50.6°S" = 5,
+      "St. 53.5°S" = 6,
+      "St. 56.0°S" = 7,
+      "St. 58.5°S" = 8
+    )[unique(metadata$`Station Label`)],
+    name = "Station",
+    drop = T
+  ) +
+  geom_segment(
+    data = subset(fmod, score == "biplot"),
+    aes(
+      x = 0,
+      y = 0,
+      xend = CCA1,
+      yend = CCA2
+    ),
+    arrow = arrow(length = unit(1 / 2, 'picas')),
+    colour = "black",
+    alpha = 0.5
+  ) +
+  scale_color_manual(
+    values = c(
+      "STZ" = "#1B9E77",
+      "SAZ" = "#D95F02",
+      "PFZ" = "#7570B3",
+      "AAZ" = "#e6ab02"
+    )[unique(metadata$Zone)],
+    name = "Zone",
+    drop = T
+  ) +
+  scale_fill_manual(
+    values = c(
+      "STZ" = "#1B9E77",
+      "SAZ" = "#D95F02",
+      "PFZ" = "#7570B3",
+      "AAZ" = "#e6ab02"
+    )[unique(metadata$Zone)],
+    name = "Zone",
+    drop = T
+  ) +
+  geom_label_repel(
+    data = biplotData,
+    aes(
+      x = CCA1,
+      y = CCA2,
+      label = label,
+      hjust = hjust,
+      vjust = vjust
+    ),
+    size = textSize,
+    label.padding = 0.1,
+    alpha = 0.8,
+    seed = 42,
+    min.segment.length = 0, # Allow segments to extend fully
+    max.overlaps = Inf,
+    parse = TRUE,
+    box.padding = 0,# Ensures segments connect with label edges
+    point.padding = 0,# Adjust space between points and label anchors
+  #  segment.size = 0.8,# Thicker segments for visibility
+    segment.color = "black",# Clearly visible segments
+    force = 10   # Stronger repulsion between labels
+  ) +
+  # geom_label(
+  #   data = biplotData,
+  #   aes(x=CCA1,y=CCA2,label= label, hjust = hjust, vjust = vjust),
+  #      size= textSize,
+  #   parse = T) +
+  xlab(xlabel) +
+  ylab(ylabel) +
+  coord_fixed() +
+  theme_classic() +
+  theme(legend.position = "bottom") +
+  guides(
+    shape = guide_legend(
+      ncol = 3,
+      byrow = TRUE,
+      override.aes = list(color = guides[guides$`Station Label` %in% unique(metadata$`Station Label`), "color"]),
+      title.position = "top",
+      title.hjust = 0.5
+    ),
+    fill = guide_legend(
+      ncol = 2,
+      byrow = TRUE,
+      title.position = "top",
+      title.hjust = 0.5
+    ),
+    color = guide_legend(
+      ncol = 2,
+      byrow = TRUE,
+      title.position = "top",
+      title.hjust = 0.5
+    )
+  )
+
+print(plots[[ccaName]])
+
+
+```
+
+```{r}
+
+#save plot
+ggsave(filename = here::here(sprintf("figures/cca_%s.png","{{ccaFigName}}")),
+       plots[[ccaName]],
+       width = 7,
+       height = 7,
+       units = "in",
+       dpi = 300
+      )
+
+
+```
