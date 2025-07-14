@@ -50,18 +50,18 @@ div.tbcol {
 
 # Introduction
 
-This document presents a multivariate analysis of the relationships between trace metals and phytoplankton community composition. It provides a brief overview of the stastical methods and interpretation. This is followed by the code and outputs.
+This document presents a multivariate analysis of the relationships between trace metals and phytoplankton community composition. It provides a brief overview of the statistical methods and interpretation. This is followed by the code and outputs.
 
 # Method overview
 
-The factors influencing the phytoplankton community structure were investigated using a canonical correspondence analysis (CCA). The analysis was conducted in R using the `cca` function from the Vegan package. The biotic variables were represented by the CHEMTAX-derived taxonomical groups' biomass (µg/L of Chl a). The CCA was repeated for multiple sets of environmental parameters:
+The factors influencing the phytoplankton community structure were investigated using a canonical correspondence analysis (CCA). The analysis was conducted in R using the `cca` function from the Vegan package. The biotic variables were represented by the CHEMTAX-derived taxonomic groups' biomass (µg/L of Chl a). The CCA was repeated for multiple sets of environmental parameters:
 
  * temperature, salinity, macronutrients, trace metals (dissolved and particulate) for all stations that include trace metals.
  * Macronutrients for all stations for all stations excluding station I008
  * Dissolved trace metals for all stations excluding station I008
  * Particulate trace metals for all stations excluding station I008
 
-Permutation tests were run based on 999 permutations to evaluate the significance of the CCA axes and the significance of the environmental variables.
+Permutation tests were run based on 999 permutations to evaluate the significance of the CCA axes and the significance of the environmental variables.The A p-value threshold of 0.05 was used to determine statistical significance.
 
 
 # CCA analysis
@@ -91,6 +91,7 @@ library(knitr)
 library(ggrepel)
 library(kableExtra)
 library(readr)
+library(ggcorrplot)
 
 #load full dataset
 WC17 <- read_csv(here::here("raw data/WC17_DataComp_update.csv")) #here:here is to get the project path
@@ -217,7 +218,9 @@ stationsToInclude <- c("IO08", "IO07", "IO06", "IO05", "IO04", "IO03", "IO02", "
 variableDescription <- "Temperature, salinity, macronutrients, trace metals and phaeopigments:Tchla"
 
 ccaFigName <- "allvariables"
-corFigName <- paste("cor",ccaFigName,sep = "_")
+corFigName <- paste("cor",ccaFigName,sep = "")
+corFigLab <- gsub("_","",as.character(paste("",corFigName)))
+ccaFigLab <- gsub("_","",as.character(paste("",ccaFigName)))
 
 env <- new.env()
 out <- knit_expand(here::here('child.Rmd'), envir = env)
@@ -236,7 +239,9 @@ variables <- c("NO3","PO4","Si(OH)4")
 stationsToInclude <- c("IO07", "IO06", "IO05", "IO04", "IO03", "IO02", "IO01")
 variableDescription <- "macronutrients"
 ccaFigName <- "macronutrients"
-corFigName <- paste("cor",ccaFigName,sep = "_")
+corFigName <- paste("cor",ccaFigName,sep = "")
+corFigLab <- gsub("_","",as.character(paste("",corFigName)))
+ccaFigLab <- gsub("_","",as.character(paste("",ccaFigName)))
 
 env2 <- new.env()
 out2 <- knit_expand(here::here('child.Rmd'), envir = env2)
@@ -254,7 +259,9 @@ variables <- c("NO3","PO4","Si(OH)4")
 stationsToInclude <- c("IO08","IO07", "IO06", "IO05", "IO04", "IO03", "IO02", "IO01")
 variableDescription <- "macronutrients with STZ"
 ccaFigName <- "macronutrients_stz"
-corFigName <- paste("cor",ccaFigName,sep = "_")
+corFigName <- paste("cor",ccaFigName,sep = "")
+corFigLab <- gsub("_","",as.character(paste("",corFigName)))
+ccaFigLab <- gsub("_","",as.character(paste("",ccaFigName)))
 
 env2 <- new.env()
 out2 <- knit_expand(here::here('child.Rmd'), envir = env2)
@@ -264,7 +271,7 @@ out2 <- knit_expand(here::here('child.Rmd'), envir = env2)
 
 `r paste(knit(text = out2), collapse = '\n')`
 
-### Analysis 4: macro and micro nutrients
+### Analysis 4a: Macronutrients and Trace Metals
 
 ```{r}
 
@@ -276,6 +283,8 @@ stationsToInclude <- c("IO07", "IO06", "IO05", "IO04", "IO03", "IO02", "IO01")
 variableDescription <- "macronutrients and trace metals"
 ccaFigName <- "macronutrients_and_tracemetals"
 corFigName <- paste("cor",ccaFigName,sep = "_")
+corFigLab <- gsub("_","",as.character(paste("",corFigName)))
+ccaFigLab <- gsub("_","",as.character(paste("",ccaFigName)))
 
 env <- new.env()
 out3 <- knit_expand(here::here('child.Rmd'), envir = env)
@@ -283,6 +292,29 @@ out3 <- knit_expand(here::here('child.Rmd'), envir = env)
 ```
 
 `r paste(knit(text = out3), collapse = '\n')`
+
+### Analysis 4b: Macronutrients and Trace Metals with STZ Station
+
+```{r}
+
+variables <- c(
+               "NO3", "PO4", "Si(OH)4","dFe", "pFe","dMn", "pMn", 
+               "dCo", "pCo", "dZn", "pZn", "dCd", "pCd", 
+               "dNi", "pNi", "dCu", "pCu")
+stationsToInclude <- c("IO08","IO07", "IO06", "IO05", "IO04", "IO03", "IO02", "IO01")
+variableDescription <- "macronutrients and trace metals with STZ"
+ccaFigName <- "macronutrients_and_tracemetalsstz"
+corFigName <- paste("cor",ccaFigName,sep = "")
+corFigLab <- gsub("_","",as.character(paste("",corFigName)))
+ccaFigLab <- gsub("_","",as.character(paste("",ccaFigName)))
+
+env <- new.env()
+out4a <- knit_expand(here::here('child.Rmd'), envir = env)
+
+```
+
+`r paste(knit(text = out4a), collapse = '\n')`
+
 
 ### Analysis 5: Dissolved trace metals 
 
@@ -297,6 +329,8 @@ stationsToInclude <- c("IO07", "IO06", "IO05", "IO04", "IO03", "IO02", "IO01")
 variableDescription <- "dissolved trace metals"
 ccaFigName <- "dissolved trace metals"
 corFigName <- paste("cor",ccaFigName,sep = "_")
+corFigLab <- gsub("_","",as.character(paste("",corFigName)))
+ccaFigLab <- gsub("_","",as.character(paste("",ccaFigName)))
 
 env <- new.env()
 out4 <- knit_expand(here::here('child.Rmd'), envir = env)
@@ -314,6 +348,8 @@ stationsToInclude <- c("IO07", "IO06", "IO05", "IO04", "IO03", "IO02", "IO01")
 variableDescription <- "Particulate trace metals"
 ccaFigName <- "particulate trace metals"
 corFigName <- paste("cor",ccaFigName,sep = "_")
+corFigLab <- gsub("_","",as.character(paste("",corFigName)))
+ccaFigLab <- gsub("_","",as.character(paste("",ccaFigName)))
 
 env <- new.env()
 out5 <- knit_expand(here::here('child.Rmd'), envir = env)
@@ -335,6 +371,8 @@ stationsToInclude <- c("IO08","IO07", "IO06", "IO05", "IO04", "IO03", "IO02", "I
 variableDescription <- "dissolved trace metals with STZ"
 ccaFigName <- "dissolved trace metals_stz"
 corFigName <- paste("cor",ccaFigName,sep = "_")
+corFigLab <- gsub("_","",as.character(paste("",corFigName)))
+ccaFigLab <- gsub("_","",as.character(paste("",ccaFigName)))
 
 env <- new.env()
 out6 <- knit_expand(here::here('child.Rmd'), envir = env)
@@ -354,6 +392,8 @@ stationsToInclude <- c("IO08","IO07", "IO06", "IO05", "IO04", "IO03", "IO02", "I
 variableDescription <- "Particulate trace metals including the STZ station"
 ccaFigName <- "particulate trace metals_stz"
 corFigName <- paste("cor",ccaFigName,sep = "_")
+corFigLab <- gsub("_","",as.character(paste("",corFigName)))
+ccaFigLab <- gsub("_","",as.character(paste("",ccaFigName)))
 
 env <- new.env()
 out7 <- knit_expand(here::here('child.Rmd'), envir = env)
@@ -364,7 +404,56 @@ out7 <- knit_expand(here::here('child.Rmd'), envir = env)
 `r paste(knit(text = out7), collapse = '\n')`
 
 
-```{r finalizing}
+
+### Analysis 9a: Macro and dissolved trace metals with STZ
+
+```{r}
+
+variables <- c(
+               "NO3", "PO4", "Si(OH)4","dFe","dMn", 
+               "dCo", "dZn", "dCd", 
+               "dNi", "dCu")
+stationsToInclude <- c("IO08","IO07", "IO06", "IO05", "IO04", "IO03", "IO02", "IO01")
+variableDescription <- "macronutrients and dissolved trace metals with STZ"
+ccaFigName <- "macronutrients_and_d_tracemetalsstz"
+corFigName <- paste("cor",ccaFigName,sep = "_")
+corFigLab <- gsub("_","",as.character(paste("",corFigName)))
+ccaFigLab <- gsub("_","",as.character(paste("",ccaFigName)))
+
+env <- new.env()
+out9a <- knit_expand(here::here('child.Rmd'), envir = env)
+
+```
+
+
+`r paste(knit(text = out9a), collapse = '\n')`
+
+### Analysis 9b: Macro and dissolved trace metals without STZ
+
+```{r}
+
+variables <- c(
+               "NO3", "PO4", "Si(OH)4","dFe","dMn", 
+               "dCo", "dZn", "dCd", 
+               "dNi", "dCu")
+stationsToInclude <- c("IO07", "IO06", "IO05", "IO04", "IO03", "IO02", "IO01")
+variableDescription <- "macronutrients and dissolved trace metals"
+ccaFigName <- "macronutrients_and_d_tracemetals"
+corFigName <- paste("cor",ccaFigName,sep = "_")
+corFigLab <- gsub("_","",as.character(paste("",corFigName)))
+ccaFigLab <- gsub("_","",as.character(paste("",ccaFigName)))
+
+env <- new.env()
+out9b <- knit_expand(here::here('child.Rmd'), envir = env)
+
+```
+
+
+`r paste(knit(text = out9b), collapse = '\n')`
+
+## Combined figure
+
+```{r combinedBiplot, fig.cap = "Combined CCA Biplots"}
 
 #saving the plots into a Rdata object that can be used in another script
 

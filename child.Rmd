@@ -4,6 +4,7 @@ vars <- variables
 ccaName <- as.character("{{ccaFigName}}")
 variableDesc <- as.character("{{variableDescription}}")
 
+
 #remove rows with NA
 WC17select <- WC17 %>%
         filter(Station %in% sts) %>%
@@ -52,25 +53,70 @@ resp <-
 
 
 #### Correlation plots
+
 \br
-```{r {{corFigName}}, fig.cap = figCap, eval.after = T}
+\br
+
+
+
+```{r {{corFigLab}}, fig.cap = figCap, eval.after = T}
+
 figCap <- sprintf("Correlation matrix for %s",
                   variableDesc
 )
+
 corMat = cor(envVars)
-corrplot(corMat, method="circle")
+
+ corrplot(corMat, method="circle")
+# # gridGraphics::grid.echo()
+# 
+# cor_df <- as.data.frame(as.table(corMat))
+# 
+# names(cor_df) <- c("Var1", "Var2", "Correlation")
+# 
+# # Order factors to preserve matrix structure
+# cor_df$Var1 <- factor(cor_df$Var1, levels = rownames(corMat))
+# cor_df$Var2 <- factor(cor_df$Var2, levels = colnames(corMat))
+# 
+# 
+# 
+# plCor <- ggplot(cor_df, aes(x = Var2, y = Var1, fill = Correlation)) +
+#   geom_point(shape = 21, color = "gray40", aes(size = abs(Correlation))) +
+#   scale_fill_gradient2(
+#     low = "#67001F",
+#     mid = "white",
+#     high = "#053061",
+#     midpoint = 0,
+#     limits = c(-1, 1)
+#   ) +
+#     scale_size(range = c(2, 8)) +
+#   scale_x_discrete(expand = expansion(mult = 0.2)) +
+#   scale_y_discrete(expand = expansion(mult = 0.2)) +
+#   theme_minimal(base_size = 11) +
+#   theme(
+#     axis.text.x = element_text(angle = 45, hjust = 1),
+#     panel.grid = element_blank()
+#   ) +
+#   coord_fixed() +
+#   guides(size = "none")  # optional: remove size legend
+# 
+# print(plCor)
+
 ```
+
 \br
 
 #### CCA outputs
 
 \br
 The CCA results are shown below:
-```{r cca, results = "markup"}
+```{r cca, results = "asis"}
 cca.res <- cca(resp ~ .,envVars)
 cca.summ <- summary(cca.res)
 
+```
 
+```{r cca2, results = "asis"}
 dfExplained <-
   data.frame(
     `Partition` = c("Total","Constrained","Unconstrained"),
@@ -86,7 +132,7 @@ kable(dfExplained, digits = 3,
 ```
 
 
-```{r}
+```{r cca3, results = "asis"}
 capt = sprintf("The proportion of variation explained by each CCA axis for the CCA %s", variableDesc)
 kable(cca.summ$cont$importance, digits = 3, 
       caption = capt) %>%
@@ -100,7 +146,7 @@ Variance inflation factors were calculated using the `vif.cca` function. Varianc
 "Variance inflation is a diagnostic tool to identify useless constraints. A common rule is that values over 10 indicate redundant constraints. If later constraints are complete linear combinations of conditions or previous constraints, they will be completely removed from the estimation, and no biplot scores or centroids are calculated for these aliased constraint." 
 
 
-```{r}
+```{r vif, results = "asis"}
 
 vif <- vif.cca(cca.res)
 
@@ -125,9 +171,10 @@ tryCatch({
 })
 
 ```
+
 \br
 The results of the permutation test to test the significance of the CCA are shown below:
-```{r, results = "markup"}
+```{r, results = "asis"}
 ccaSignif <- anova.cca(cca.res,permutations = 999)
 ccaSignif %>%
   kable(digits = 3, 
@@ -164,7 +211,7 @@ fmod <- fortify(cca.res)
 ```
 
 \br
-```{r {{ccaFigName}}, fig.height= 7, fig.width = 7, fig.cap = ccaFigCap, eval.after=T}
+```{r {{ccaFigLab}}, fig.height= 7, fig.width = 7, fig.cap = ccaFigCap, eval.after=T}
 
 ccaFigCap <- sprintf("Canonical correspondence analysis ordination diagram of absolute contributions of different phytoplankton groups for a CCA with %s. Arrows indicate environment variables: %s . Blue text refer to absolute contributions of phytoplankton groups. Stations are represented by shapes as per the legend and are colored according to the frontal zones in which they are located.",
     variableDesc,
@@ -342,7 +389,7 @@ print(plots[[ccaName]])
 
 ```
 
-```{r}
+```{r }
 
 #save plot
 ggsave(filename = here::here(sprintf("figures/cca_%s.png","{{ccaFigName}}")),
